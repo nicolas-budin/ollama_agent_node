@@ -1,0 +1,18 @@
+{
+  // Node 24 exécute le TypeScript directement (type stripping) : tsc ne sert
+  // qu'à vérifier les types, jamais à compiler.
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["es2024"],
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "tests"]
+}

@@ -1,0 +1,14 @@
+# Workspace "source" du pipeline : une PVC fixe réutilisée à chaque run plutôt
+# qu'un volumeClaimTemplate. La StorageClass de CRC est en reclaimPolicy
+# Retain : un volumeClaimTemplate laisserait un PV orphelin par run.
+# git-clone vide le dossier au début de chaque run.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-source
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

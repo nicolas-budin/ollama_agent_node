@@ -41,6 +41,17 @@ docker run -p 8124:8124 ollama-agent-node
 
 Le conteneur joint Ollama sur l'hôte via `host.docker.internal`. Sous Linux sans Docker Desktop, ajouter `--add-host=host.docker.internal:host-gateway`.
 
+## Déploiement OpenShift (CRC)
+
+Un pipeline Tekton (OpenShift Pipelines), lancé à la main, clone `main` depuis GitHub, lance les tests, construit l'image dans le registre interne et déploie dans le namespace `ollama-agent-node` :
+
+```bash
+git push origin main
+oc create -f tekton/pipelinerun.yaml -n ollama-agent-node
+```
+
+Installation, suivi et rollback : voir [tekton/README.md](tekton/README.md).
+
 ## Variables d'environnement
 
 | Variable | Défaut | Rôle |

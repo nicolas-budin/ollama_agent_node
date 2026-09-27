@@ -1,0 +1,13 @@
+# Installe OpenShift Pipelines (Tekton) pour tout le cluster.
+# À appliquer une seule fois, par un utilisateur cluster-admin (kubeadmin sur CRC).
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-pipelines-operator-rh
+  namespace: openshift-operators
+spec:
+  channel: latest
+  name: openshift-pipelines-operator-rh
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

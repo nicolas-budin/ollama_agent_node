@@ -1,0 +1,101 @@
+# Pipeline de CD : clone → tests → build de l'image → déploiement.
+# Les tâches git-clone, buildah et openshift-client sont fournies par
+# l'opérateur OpenShift Pipelines (namespace openshift-pipelines), référencées
+# via le resolver "cluster".
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ollama-agent-node
+spec:
+  params:
+    - name: git-url
+      type: string
+      default: https://github.com/nicolas-budin/ollama_agent_node.git
+    - name: git-revision
+      type: string
+      description: Branche, tag ou SHA à déployer (ex. un ancien SHA pour un rollback).
+      default: main
+    - name: image
+      type: string
+      description: Image sans tag ; le tag est le SHA du commit cloné.
+      default: image-registry.openshift-image-registry.svc:5000/ollama-agent-node/ollama-agent-node
+  workspaces:
+    - name: source
+  tasks:
+    - name: fetch-source
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: git-clone }
+          - { name: namespace, value: openshift-pipelines }
+      params:
+        - { name: URL, value: $(params.git-url) }
+        - { name: REVISION, value: $(params.git-revision) }
+      workspaces:
+        - { name: output, workspace: source }
+
+    - name: test
+      runAfter: [fetch-source]
+      workspaces:
+        - { name: source, workspace: source }
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: npm-test
+            image: docker.io/library/node:24-slim
+            workingDir: $(workspaces.source.path)
+            env:
+              # Le pod tourne avec un UID arbitraire sans home : on redirige
+              # le home et le cache npm vers un dossier inscriptible.
+              - { name: HOME, value: /tmp/home }
+              - { name: npm_config_cache, value: /tmp/npm-cache }
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              echo "--- Backend"
+              npm ci --no-audit --no-fund
+              npm run typecheck
+              npm test
+              echo "--- Frontend"
+              npm --prefix frontend ci --no-audit --no-fund
+              npm --prefix frontend test
+
+    - name: build-image
+      runAfter: [test]
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: buildah }
+          - { name: namespace, value: openshift-pipelines }
+      params:
+        # Tag immuable = SHA complet du commit : chaque image dit d'où elle vient.
+        - { name: IMAGE, value: "$(params.image):$(tasks.fetch-source.results.COMMIT)" }
+      workspaces:
+        - { name: source, workspace: source }
+
+    - name: deploy
+      runAfter: [build-image]
+      taskRef:
+        resolver: cluster
+        params:
+          - { name: kind, value: task }
+          - { name: name, value: openshift-client }
+          - { name: namespace, value: openshift-pipelines }
+      params:
+        # Déploiement par digest : le pod lance exactement l'image construite
+        # ci-dessus, et le Deployment n'est appliqué qu'une fois (pas de
+        # rollout intermédiaire vers le placeholder).
+        - name: SCRIPT
+          value: |
+            set -euo pipefail
+            oc apply -f openshift/service.yaml -f openshift/route.yaml
+            sed "s|IMAGE_PLACEHOLDER|$(params.image)@$(tasks.build-image.results.IMAGE_DIGEST)|" \
+              openshift/deployment.yaml | oc apply -f -
+            oc rollout status deployment/ollama-agent-node --timeout=5m
+            echo "Déployé : https://$(oc get route ollama-agent-node -o jsonpath='{.spec.host}')"
+      workspaces:
+        # openshift-client fait un cd dans ce workspace avant d'exécuter SCRIPT.
+        - { name: manifest_dir, workspace: source }

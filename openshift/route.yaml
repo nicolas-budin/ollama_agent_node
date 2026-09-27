@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ollama-agent-node
+  labels:
+    app: ollama-agent-node
+  annotations:
+    # Le timeout par défaut du routeur (30 s) couperait les réponses longues
+    # streamées en SSE.
+    haproxy.router.openshift.io/timeout: 5m
+spec:
+  to:
+    kind: Service
+    name: ollama-agent-node
+  port:
+    targetPort: 8124

@@ -1,0 +1,20 @@
+# Lance un run du pipeline :
+#   oc create -f tekton/pipelinerun.yaml -n ollama-agent-node
+# (create, pas apply : generateName donne un nom unique à chaque run.)
+# Pour déployer une autre révision, décommenter le paramètre git-revision.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: ollama-agent-node-
+spec:
+  pipelineRef:
+    name: ollama-agent-node
+  # params:
+  #   - name: git-revision
+  #     value: <sha>
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: pipeline-source

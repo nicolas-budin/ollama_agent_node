@@ -1,0 +1,50 @@
+# IMAGE_PLACEHOLDER est remplacé par la tâche "deploy" du pipeline Tekton
+# (image@digest tout juste construite) : ne pas appliquer ce fichier tel quel.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-agent-node
+  labels:
+    app: ollama-agent-node
+spec:
+  # L'historique de conversation vit en mémoire du process : deux pods
+  # donneraient deux conversations divergentes, et Recreate évite que l'ancien
+  # et le nouveau pod coexistent pendant un déploiement.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ollama-agent-node
+  template:
+    metadata:
+      labels:
+        app: ollama-agent-node
+    spec:
+      containers:
+        - name: ollama-agent-node
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 8124
+          env:
+            # IP LAN du Mac qui fait tourner Ollama, vue depuis le réseau du
+            # cluster CRC (host.crc.testing ne fonctionne pas sur ce setup).
+            # À ajuster si l'IP change (DHCP), puis relancer le pipeline.
+            - name: OLLAMA_URL
+              value: "http://192.168.1.119:11434/api/chat"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8124
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8124
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

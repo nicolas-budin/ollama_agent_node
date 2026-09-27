@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Node port of the sibling Python project `~/github/ollama_agent`: a demo chat app that talks to a **local Ollama model** (`gemma4:26b`) over `http://localhost:11434/api/chat`. Backend is Fastify 5 in TypeScript, frontend is React (Vite), copied unchanged from the Python project. Single-tenant: one shared conversation history for every visitor, kept in process memory (Ollama is stateless, so every request resends the full history).
 
-CI/CD, Helm, OpenShift and Argo CD from the Python project are intentionally **not** ported.
+The Python project's GitHub Actions CI, Helm chart and Argo CD setup are intentionally **not** ported. Deployment to the local CRC cluster uses a **Tekton pipeline** instead (see "Deployment" below).
 
 ## Commands
 
@@ -58,3 +58,18 @@ Identical to the Python project. Keep the SSE contract above stable: `App.jsx` d
 No real network:
 - `tests/ollama-client.test.ts` stubs global `fetch` with `Response`s streaming NDJSON. It covers split lines, HTTP errors, truncated streams (history untouched), idle timeout, and caller abort.
 - `tests/app.test.ts` asserts exact SSE bodies.
+
+## Deployment (Tekton on CRC, `tekton/` + `openshift/`)
+
+Documented in `tekton/README.md` (French). Keep it in sync when the pipeline or manifests change.
+
+- OpenShift Pipelines operator (cluster-wide, `tekton/operator-subscription.yaml`). Pipeline `ollama-agent-node` in namespace `ollama-agent-node`.
+- Triggered **manually** (`oc create -f tekton/pipelinerun.yaml`). CRC isn't reachable from the internet, so no GitHub webhook. The pipeline clones **GitHub**, not the local checkout: push first.
+- Tasks:
+  - `git-clone`, `buildah` and `openshift-client` are the operator's bundled Tasks, referenced with the `cluster` resolver from namespace `openshift-pipelines`. Their results are uppercase (`COMMIT`, `IMAGE_DIGEST`).
+  - `test` is an inline `taskSpec` on `node:24-slim`. It sets `HOME`/`npm_config_cache` to `/tmp` because pods run with an arbitrary UID.
+- Image tag = full commit SHA. `deploy` substitutes `IMAGE_PLACEHOLDER` in `openshift/deployment.yaml` with `image@digest` and applies it once, so never `oc apply` that file directly.
+- Pure Tekton: no Argo CD Application manages this namespace, so there is no selfHeal to fight.
+- Workspace = fixed PVC `pipeline-source`, not a `volumeClaimTemplate`: the CRC StorageClass is `Retain`, so templates would leak one PV per run.
+- `replicas: 1` + `strategy: Recreate` (in-memory history). Route timeout is 5m (SSE streams). `OLLAMA_URL` = the Mac's LAN IP, hardcoded in `openshift/deployment.yaml`.
+- `.dockerignore` must keep excluding `node_modules`: the `test` task leaves them in the shared workspace, which is buildah's build context.

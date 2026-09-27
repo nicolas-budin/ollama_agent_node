@@ -50,7 +50,8 @@ git push origin main
 oc create -f tekton/pipelinerun.yaml -n ollama-agent-node
 ```
 
-Installation, suivi et rollback : voir [tekton/README.md](tekton/README.md).
+- Installation depuis zéro, chaque commande expliquée : [tekton/README.md](tekton/README.md)
+- Usage au quotidien (déploiements, rollback, dépannage, désinstallation) : [tekton/EXPLOITATION.md](tekton/EXPLOITATION.md)
 
 ## Variables d'environnement
 

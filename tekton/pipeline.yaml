@@ -54,6 +54,15 @@ spec:
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
+              # Lancé depuis la console avec le workspace par défaut ("Empty
+              # Directory"), chaque tâche a son propre dossier vide : le clone
+              # de fetch-source n'est pas visible ici.
+              if [ ! -f package.json ]; then
+                echo "ERREUR : le workspace 'source' est vide (package.json introuvable)."
+                echo "Le run doit utiliser la PVC pipeline-source, pas 'Empty Directory' :"
+                echo "  oc create -f tekton/pipelinerun.yaml -n ollama-agent-node"
+                exit 1
+              fi
               echo "--- Backend"
               npm ci --no-audit --no-fund
               npm run typecheck
@@ -95,7 +104,7 @@ spec:
             sed "s|IMAGE_PLACEHOLDER|$(params.image)@$(tasks.build-image.results.IMAGE_DIGEST)|" \
               openshift/deployment.yaml | oc apply -f -
             oc rollout status deployment/ollama-agent-node --timeout=5m
-            echo "Déployé : https://$(oc get route ollama-agent-node -o jsonpath='{.spec.host}')"
+            echo "Déployé : http://$(oc get route ollama-agent-node -o jsonpath='{.spec.host}')"
       workspaces:
         # openshift-client fait un cd dans ce workspace avant d'exécuter SCRIPT.
         - { name: manifest_dir, workspace: source }

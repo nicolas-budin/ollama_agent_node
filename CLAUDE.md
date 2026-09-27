@@ -61,9 +61,17 @@ No real network:
 
 ## Deployment (Tekton on CRC, `tekton/` + `openshift/`)
 
-Documented in `tekton/README.md` (French). Keep it in sync when the pipeline or manifests change.
+Documented in French in two files. Keep both in sync when the pipeline or manifests change:
+- `tekton/README.md`: from-scratch install guide, every command explained, plus a line-by-line walkthrough of the YAML files.
+- `tekton/EXPLOITATION.md`: day-to-day operations (`openshift/` manifests, redeploys, parameters, rollback, image cleanup, troubleshooting, uninstall, design choices).
 
-- OpenShift Pipelines operator (cluster-wide, `tekton/operator-subscription.yaml`). Pipeline `ollama-agent-node` in namespace `ollama-agent-node`.
+Step numbers ("étape N") in EXPLOITATION.md refer to README.md.
+
+- OpenShift Pipelines operator (cluster-wide, `tekton/operator-subscription.yaml`, which hardcodes namespace `openshift-operators`). Pipeline `ollama-agent-node` in namespace `ollama-agent-node`. Other manifests carry no `namespace:`: `tekton/` files get it from `-n`, and `openshift/` files from the pod running `deploy`.
+- Operator install gotchas (CLI install):
+  - CSV `Succeeded` only means the operator is up. Tekton itself (namespace `openshift-pipelines`, the `Task` CRD, bundled tasks) comes ~3 min later. Wait for `oc get tektonconfig` READY=True.
+  - The console plugin `pipelines-console-plugin` is created but **not enabled**. Enable it by adding it to `consoles.operator.openshift.io/cluster` `.spec.plugins`, otherwise there is no Pipelines menu.
+  - The Developer perspective is disabled on this cluster, so doc paths use the main nav (Pipelines → Pipelines).
 - Triggered **manually** (`oc create -f tekton/pipelinerun.yaml`). CRC isn't reachable from the internet, so no GitHub webhook. The pipeline clones **GitHub**, not the local checkout: push first.
 - Tasks:
   - `git-clone`, `buildah` and `openshift-client` are the operator's bundled Tasks, referenced with the `cluster` resolver from namespace `openshift-pipelines`. Their results are uppercase (`COMMIT`, `IMAGE_DIGEST`).
